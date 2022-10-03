@@ -51,6 +51,50 @@ const config = {
 const client = new EC2Client(config);
 ```
 
+### next.config.js
+
+To pass these [Environment Variables to Amplify](https://docs.aws.amazon.com/amplify/latest/userguide/server-side-rendering-amplify.html#ssr-environment-variable-support), we need to modify the next.config.js file.
+
+```javascript
+const withTranspileModules = require('next-transpile-modules');
+const withPlugins = require('next-compose-plugins');
+
+module.exports = withPlugins(
+  [withTranspileModules(['@cloudscape-design/components'])],
+  {
+    env: {
+      ACCESS_KEY_ID: process.env.ACCESS_KEY_ID,
+      SECRET_ACCESS_KEY: process.env.SECRET_ACCESS_KEY,
+    },
+  },
+);
+```
+
+### amplify.yml
+
+To configure the build of the Amplify application, we include `amplify.yml` and instruct it to use Node version 16 as part of the build.
+
+```yaml
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - nvm use $VERSION_NODE_16
+        - npm ci
+    build:
+      commands:
+        - nvm use $VERSION_NODE_16
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+```
+
 ### Result
 
 Now that we have our API configured with credentials, when the front end application uses this API, we will query the associated account for active instances in `us-east-1` and display them on a simple page.
@@ -59,4 +103,65 @@ Now that we have our API configured with credentials, when the front end applica
 
 ### Deploying in AWS Amplify
 
+In order to deploy to AWS Amplify, you will need to use the GitHub Apps feature to [authorize Amplify](https://docs.aws.amazon.com/amplify/latest/userguide/setting-up-GitHub-access.html) to read your GitHub repository.
+
 [![amplifybutton](https://oneclick.amplifyapp.com/button.svg)](https://console.aws.amazon.com/amplify/home#/deploy?repo=https://github.com/schuettc/nextjs-ssr-with-amplify-deploy)
+
+#### Begin Deploy
+
+After clicking, you will begin the process of deploying to Amplify.
+
+![Deploy](images/Deploy.png)
+
+#### Add Environment Variables
+
+At the next screen, you will be able to add Environment Variables. Please not the additional Environment Variable needed in addition to your Access Key ID and Secret Access Key:
+
+`AMPLIFY_NEXTJS_EXPERIMENTAL_TRACE` = `true`
+
+![AddEnvironmentVariables](images/AddEnvVariablesToAmplify.png)
+
+#### Deploying
+
+Once added, the App will being deploying.
+![Deploying](images/Deploying.png)
+
+#### Deploy Failure
+
+This should result in a failure to deploy that we will be fixing.
+
+![FailureToDeploy](images/DeployFailure.png)
+
+### Finalizing Amplify Configuration
+
+In order to deploy a SSR Application, we must add appropriate Service Role permissions. That will correct this error:
+
+```text
+ Cannot find any generated SSR resources to deploy. If you intend for your app to be SSR, please check your app Service Role permissions. Otherwise, please check out our docs on how to setup your app to be detected as SSG (https://docs.aws.amazon.com/amplify/latest/userguide/server-side-rendering-amplify.html#deploy-nextjs-app)
+```
+
+#### Add Service Role
+
+In the App settings, select General and Edit. If there is no available Service role, you will need to create a new service role.
+
+![ServiceRole](images/ServiceRole.png)
+
+Follow the prompts to create a new Service Role and then assign in the Amplify App settings then Save.
+
+#### Update Build Settings
+
+Additionally, you should configure the Build image settings. In the App settings, select Build settings and Edit. Set the Next.js version to `latest` and the Node.js version to `14`. This will ensure the AWS Lambdas that are created as part of this application use Node version 14.
+
+![BuildSettings](images/BuildSettings.png)
+
+#### Redeploy
+
+Return to your App and select `Redeploy this version`
+
+![Redeploy](images/Redeploy.png)
+
+#### Success!
+
+Your app should now successfully deploy and can be accessed at the Domain shown in the console.
+
+![Success](images/Success.png)
